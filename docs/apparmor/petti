@@ -1,0 +1,37 @@
+# AppArmor profile allowing Petti to use unprivileged user namespaces on
+# Ubuntu 23.10+ (kernel.apparmor_restrict_unprivileged_userns=1).
+#
+# Install (adjust the binary path):
+#   sudo cp docs/apparmor/petti /etc/apparmor.d/petti
+#   # edit the profile to match `readlink -f $(which petti)` or your build path
+#   sudo apparmor_parser -r /etc/apparmor.d/petti
+
+abi <abi/3.0>,
+
+include <tunables/global>
+
+profile petti /home/*/projects/petti/bin/petti flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/consoles>
+  include <abstractions/nameservice>
+
+  /home/*/projects/petti/bin/petti mr,
+  /proc/self/exe ix,
+  /tmp/** rwlk,
+  @{HOME}/.local/share/petti/** rwlk,
+  /var/lib/petti/** rwlk,
+
+  capability sys_admin,
+  capability net_admin,
+  capability setuid,
+  capability setgid,
+  capability chown,
+  capability mknod,
+  capability dac_override,
+  capability dac_read_search,
+
+  userns,
+
+  # Allow re-exec and child processes.
+  /** ixr,
+}
