@@ -1,0 +1,6 @@
+# Example Petfile — build with: sudo petti build -t hello .
+FROM alpine
+WORKDIR /app
+ENV GREETING=hello
+COPY hello.txt /app/hello.txt
+CMD ["cat", "/app/hello.txt"]

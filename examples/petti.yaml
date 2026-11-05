@@ -1,0 +1,6 @@
+# Compose-lite example — sudo petti compose up -f examples/petti.yaml
+services:
+  sleeper:
+    image: alpine
+    command: ["sleep", "3600"]
+    network: bridge
