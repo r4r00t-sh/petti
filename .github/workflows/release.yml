@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build-and-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          cache: true
+
+      - name: unit tests
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: build static binaries
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          COMMIT="$(git rev-parse --short HEAD)"
+          BUILD_DATE="$(date -u +%Y-%m-%d)"
+          MODULE="github.com/r4r00t-sh/petti"
+          LDFLAGS="-s -w \
+            -X ${MODULE}/internal/version.Version=${VERSION} \
+            -X ${MODULE}/internal/version.Commit=${COMMIT} \
+            -X ${MODULE}/internal/version.BuildDate=${BUILD_DATE}"
+          mkdir -p dist
+          for pair in linux/amd64 linux/arm64; do
+            GOOS="${pair%/*}"
+            GOARCH="${pair#*/}"
+            out="dist/petti-${GOOS}-${GOARCH}"
+            GOOS="$GOOS" GOARCH="$GOARCH" go build -trimpath -ldflags "$LDFLAGS" -o "$out" ./cmd/petti
+            tar -C dist -czf "dist/petti-${GOOS}-${GOARCH}.tar.gz" "petti-${GOOS}-${GOARCH}"
+          done
+          (cd dist && sha256sum petti-linux-amd64.tar.gz petti-linux-arm64.tar.gz > SHA256SUMS)
+          ls -la dist
+          file dist/petti-linux-amd64 dist/petti-linux-arm64
+
+      - name: create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/petti-linux-amd64.tar.gz
+            dist/petti-linux-arm64.tar.gz
+            dist/SHA256SUMS

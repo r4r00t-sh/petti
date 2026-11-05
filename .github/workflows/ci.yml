@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: lint-vet-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
+
+      - name: unit tests
+        run: go test ./...
+
+      - name: race tests
+        run: go test -race ./...
+
+      - name: coverage
+        run: |
+          go test -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name: upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          if-no-files-found: ignore
+
+      - name: build
+        run: make build
+
+      - name: version acceptance
+        run: |
+          out=$(./bin/petti -v)
+          echo "$out"
+          echo "$out" | grep -q '^petti version '
+
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          cache: true
+      # Static busybox: the fixture rootfs has no glibc/ld.so for a dynamic binary.
+      - name: install busybox-static
+        run: sudo apt-get update && sudo apt-get install -y busybox-static
+      - name: build
+        run: make build
+      - name: integration tests
+        run: sudo make integration
